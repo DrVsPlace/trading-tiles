@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trading Strategy Informer Tiles</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    // Bull SVG Icon - matches the uploaded green bull images
+    const BullIcon = ({ size = 80 }) => (
+      <svg viewBox="0 0 100 90" style={{ width: size, height: size * 0.9 }}>
+        <path d="M20 35 Q8 5 28 20 L38 38" fill="#00A651" stroke="#00A651" strokeWidth="2"/>
+        <path d="M80 35 Q92 5 72 20 L62 38" fill="#00A651" stroke="#00A651" strokeWidth="2"/>
+        <ellipse cx="50" cy="55" rx="38" ry="32" fill="#00A651"/>
+        <path d="M18 50 Q10 55 15 65 Q20 72 30 68" fill="#00A651"/>
+        <path d="M82 50 Q90 55 85 65 Q80 72 70 68" fill="#00A651"/>
+        <path d="M30 42 L35 55 L28 50" fill="white" opacity="0.9"/>
+        <path d="M70 42 L65 55 L72 50" fill="white" opacity="0.9"/>
+        <ellipse cx="38" cy="45" rx="4" ry="3" fill="white"/>
+        <ellipse cx="62" cy="45" rx="4" ry="3" fill="white"/>
+        <ellipse cx="43" cy="72" rx="6" ry="4" fill="white" opacity="0.8"/>
+        <ellipse cx="57" cy="72" rx="6" ry="4" fill="white" opacity="0.8"/>
+        <path d="M40 70 Q42 75 44 70" stroke="white" strokeWidth="2" fill="none"/>
+        <path d="M56 70 Q58 75 60 70" stroke="white" strokeWidth="2" fill="none"/>
+        <circle cx="50" cy="80" r="2" fill="white" opacity="0.6"/>
+      </svg>
+    );
+
+    // Bear SVG Icon - matches the uploaded red bear images
+    const BearIcon = ({ size = 80 }) => (
+      <svg viewBox="0 0 100 100" style={{ width: size, height: size }}>
+        <ellipse cx="22" cy="18" rx="14" ry="12" fill="#B71C1C"/>
+        <ellipse cx="78" cy="18" rx="14" ry="12" fill="#B71C1C"/>
+        <ellipse cx="22" cy="18" rx="8" ry="7" fill="white" opacity="0.3"/>
+        <ellipse cx="78" cy="18" rx="8" ry="7" fill="white" opacity="0.3"/>
+        <path d="M50 12 Q12 25 8 58 Q8 95 50 100 Q92 95 92 58 Q88 25 50 12" fill="#B71C1C"/>
+        <path d="M25 35 L30 50 Q35 55 32 60 L25 52 Q20 45 25 35" fill="white" opacity="0.15"/>
+        <path d="M75 35 L70 50 Q65 55 68 60 L75 52 Q80 45 75 35" fill="white" opacity="0.15"/>
+        <ellipse cx="35" cy="48" rx="6" ry="5" fill="white" opacity="0.9"/>
+        <ellipse cx="65" cy="48" rx="6" ry="5" fill="white" opacity="0.9"/>
+        <circle cx="35" cy="49" r="2" fill="#B71C1C"/>
+        <circle cx="65" cy="49" r="2" fill="#B71C1C"/>
+        <ellipse cx="50" cy="65" rx="12" ry="9" fill="white" opacity="0.85"/>
+        <ellipse cx="50" cy="63" rx="5" ry="4" fill="#B71C1C" opacity="0.9"/>
+        <path d="M50 95 L45 88 L50 82 L55 88 Z" fill="#B71C1C"/>
+        <path d="M42 78 Q50 85 58 78" stroke="white" strokeWidth="1.5" fill="none" opacity="0.5"/>
+      </svg>
+    );
+
+    // Individual Tile Component
+    const Tile = ({ type, label, labelStyle, isBull, onClick, isSmall = false, isSelected = false }) => {
+      const baseSize = isSmall ? 40 : 80;
+      const padding = isSmall ? 'p-2' : 'p-4';
+      const textSize = isSmall ? 'text-xs' : 'text-sm';
+
+      const borderColor = isBull ? 'border-green-600' : 'border-red-700';
+      const hoverBg = isBull ? 'hover:bg-green-50' : 'hover:bg-red-50';
+      const selectedBg = isSelected ? (isBull ? 'bg-green-100' : 'bg-red-100') : 'bg-white';
+      const textColor = isBull ? 'text-green-700' : 'text-red-800';
+
+      return (
+        <div
+          onClick={onClick}
+          className={`flex flex-col items-center ${padding} rounded-xl cursor-pointer transition-all
+            hover:scale-105 shadow-lg hover:shadow-xl border-2 ${borderColor} ${hoverBg} ${selectedBg}`}
+          style={{ minWidth: isSmall ? 60 : 100 }}
+        >
+          {isBull ? <BullIcon size={baseSize} /> : <BearIcon size={baseSize} />}
+          <span
+            className={`${textSize} ${textColor} text-center mt-2 leading-tight`}
+            style={{
+              fontWeight: labelStyle === 'bold' ? 700 : (labelStyle === 'caps' ? 500 : 400),
+              fontStyle: labelStyle === 'lower' ? 'normal' : 'normal'
+            }}
+          >
+            {label}
+          </span>
+        </div>
+      );
+    };
+
+    // Trade Row Component
+    const TradeRow = ({ trade, onAction }) => {
+      const formatTime = (date) => date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const formatDate = (date) => date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+      return (
+        <div className="bg-gray-50 rounded-xl p-4 mb-3 border border-gray-200 shadow-sm">
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="font-bold text-lg text-gray-800">Trade {trade.index}</span>
+                <span className="text-sm text-gray-500 bg-gray-200 px-3 py-1 rounded-full">
+                  {formatDate(trade.timestamp)} @ {formatTime(trade.timestamp)}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              {trade.tiles.map((tile, idx) => (
+                <Tile
+                  key={idx}
+                  type={tile.type}
+                  label={tile.label}
+                  labelStyle={tile.labelStyle}
+                  isBull={tile.isBull}
+                  isSmall={true}
+                />
+              ))}
+            </div>
+
+            {!trade.completed && (
+              <div className="flex gap-3 flex-wrap items-center pt-2 border-t border-gray-200">
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => onAction(trade.index, 'took', true)}
+                    className={`px-4 py-2 rounded-lg font-semibold transition-all ${
+                      trade.tookTrade === true
+                        ? 'bg-blue-600 text-white shadow-md'
+                        : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                    }`}
+                  >
+                    Took the Trade
+                  </button>
+                  <button
+                    onClick={() => onAction(trade.index, 'took', false)}
+                    className={`px-4 py-2 rounded-lg font-semibold transition-all ${
+                      trade.tookTrade === false
+                        ? 'bg-gray-600 text-white shadow-md'
+                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                    }`}
+                  >
+                    Did Not Take
+                  </button>
+                </div>
+
+                {trade.tookTrade === true && (
+                  <div className="flex gap-2 ml-4">
+                    <button
+                      onClick={() => onAction(trade.index, 'result', 'win')}
+                      className={`px-4 py-2 rounded-lg font-semibold transition-all ${
+                        trade.result === 'win'
+                          ? 'bg-green-600 text-white shadow-md'
+                          : 'bg-green-100 text-green-700 hover:bg-green-200'
+                      }`}
+                    >
+                      Win
+                    </button>
+                    <button
+                      onClick={() => onAction(trade.index, 'result', 'loss')}
+                      className={`px-4 py-2 rounded-lg font-semibold transition-all ${
+                        trade.result === 'loss'
+                          ? 'bg-red-600 text-white shadow-md'
+                          : 'bg-red-100 text-red-700 hover:bg-red-200'
+                      }`}
+                    >
+                      Loss
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {trade.completed && (
+              <div className="flex gap-3 items-center pt-2 border-t border-gray-200">
+                <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                  trade.tookTrade ? 'bg-blue-100 text-blue-700' : 'bg-gray-200 text-gray-600'
+                }`}>
+                  {trade.tookTrade ? 'Took Trade' : 'Skipped'}
+                </span>
+                {trade.tookTrade && trade.result && (
+                  <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                    trade.result === 'win' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                  }`}>
+                    {trade.result === 'win' ? 'WIN' : 'LOSS'}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    };
+
+    // Statistics Component
+    const Statistics = ({ trades }) => {
+      const completedTrades = trades.filter(t => t.completed);
+      const tookTrades = completedTrades.filter(t => t.tookTrade);
+      const wins = tookTrades.filter(t => t.result === 'win').length;
+      const losses = tookTrades.filter(t => t.result === 'loss').length;
+      const winRate = tookTrades.length > 0 ? ((wins / tookTrades.length) * 100).toFixed(1) : 0;
+
+      const tileUsage = {};
+      const allTileTypes = [
+        'MACRO DIVERGENCE (Bull)', 'micro divergence (Bull)', 'RSI DIVERGENCE (Bull)', 'ZIG',
+        'MACRO DIVERGENCE (Bear)', 'micro divergence (Bear)', 'RSI DIVERGENCE (Bear)', 'ZAG'
+      ];
+      allTileTypes.forEach(t => tileUsage[t] = 0);
+
+      completedTrades.forEach(trade => {
+        trade.tiles.forEach(tile => {
+          const key = tile.label + (tile.isBull ? ' (Bull)' : ' (Bear)');
+          tileUsage[key] = (tileUsage[key] || 0) + 1;
+        });
+      });
+
+      const avgTilesPerTrade = completedTrades.length > 0
+        ? (completedTrades.reduce((sum, t) => sum + t.tiles.length, 0) / completedTrades.length).toFixed(1)
+        : 0;
+
+      return (
+        <div className="bg-gradient-to-br from-indigo-600 to-purple-700 rounded-2xl p-8 text-white mt-6 shadow-2xl">
+          <h2 className="text-2xl font-bold mb-6">Trading Session Summary</h2>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <div className="bg-white/20 backdrop-blur rounded-xl p-4 text-center">
+              <div className="text-4xl font-bold">{completedTrades.length}</div>
+              <div className="text-sm opacity-80 mt-1">Total Setups</div>
+            </div>
+            <div className="bg-white/20 backdrop-blur rounded-xl p-4 text-center">
+              <div className="text-4xl font-bold">{tookTrades.length}</div>
+              <div className="text-sm opacity-80 mt-1">Trades Taken</div>
+            </div>
+            <div className="bg-white/20 backdrop-blur rounded-xl p-4 text-center">
+              <div className="text-4xl font-bold text-green-300">{wins}</div>
+              <div className="text-sm opacity-80 mt-1">Wins</div>
+            </div>
+            <div className="bg-white/20 backdrop-blur rounded-xl p-4 text-center">
+              <div className="text-4xl font-bold text-red-300">{losses}</div>
+              <div className="text-sm opacity-80 mt-1">Losses</div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div className="bg-white/10 backdrop-blur rounded-xl p-5">
+              <h3 className="font-semibold mb-3 text-lg">Win Rate</h3>
+              <div className="text-5xl font-bold">{winRate}%</div>
+              <div className="w-full bg-white/20 rounded-full h-3 mt-3">
+                <div
+                  className="bg-green-400 h-3 rounded-full transition-all duration-500"
+                  style={{ width: `${winRate}%` }}
+                />
+              </div>
+            </div>
+            <div className="bg-white/10 backdrop-blur rounded-xl p-5">
+              <h3 className="font-semibold mb-3 text-lg">Avg Informers Per Trade</h3>
+              <div className="text-5xl font-bold">{avgTilesPerTrade}</div>
+              <div className="text-sm opacity-80 mt-2">tiles selected per setup</div>
+            </div>
+          </div>
+
+          <div className="bg-white/10 backdrop-blur rounded-xl p-5">
+            <h3 className="font-semibold mb-4 text-lg">Informer Usage Rate</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {Object.entries(tileUsage).map(([label, count]) => {
+                const pct = completedTrades.length > 0 ? ((count / completedTrades.length) * 100) : 0;
+                return (
+                  <div key={label} className="flex items-center justify-between gap-3">
+                    <span className="text-sm truncate flex-1">{label}</span>
+                    <div className="flex items-center gap-2">
+                      <div className="w-20 bg-white/20 rounded-full h-2">
+                        <div
+                          className="bg-white h-2 rounded-full transition-all"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                      <span className="text-sm w-12 text-right">{pct.toFixed(0)}%</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    // Main App Component
+    function App() {
+      const [isTrading, setIsTrading] = useState(false);
+      const [trades, setTrades] = useState([]);
+      const [currentTrade, setCurrentTrade] = useState(null);
+      const [showStats, setShowStats] = useState(false);
+
+      // Tile definitions matching the uploaded images
+      const bullTiles = [
+        { type: 'macro', label: 'MACRO DIVERGENCE', labelStyle: 'caps', isBull: true },
+        { type: 'micro', label: 'micro divergence', labelStyle: 'lower', isBull: true },
+        { type: 'rsi', label: 'RSI DIVERGENCE', labelStyle: 'caps', isBull: true },
+        { type: 'zig', label: 'ZIG', labelStyle: 'bold', isBull: true },
+      ];
+
+      const bearTiles = [
+        { type: 'macro', label: 'MACRO DIVERGENCE', labelStyle: 'caps', isBull: false },
+        { type: 'micro', label: 'micro divergence', labelStyle: 'lower', isBull: false },
+        { type: 'rsi', label: 'RSI DIVERGENCE', labelStyle: 'caps', isBull: false },
+        { type: 'zag', label: 'ZAG', labelStyle: 'bold', isBull: false },
+      ];
+
+      const handleStartTrading = () => {
+        setIsTrading(true);
+        setTrades([]);
+        setCurrentTrade(null);
+        setShowStats(false);
+      };
+
+      const handleTileClick = (tile) => {
+        if (!isTrading) return;
+
+        if (!currentTrade) {
+          // Start a new trade
+          const newTrade = {
+            index: trades.length + 1,
+            timestamp: new Date(),
+            tiles: [{ ...tile }],
+            tookTrade: null,
+            result: null,
+            completed: false,
+          };
+          setCurrentTrade(newTrade);
+        } else {
+          // Check if tile already exists in current trade
+          const existingIdx = currentTrade.tiles.findIndex(
+            t => t.type === tile.type && t.isBull === tile.isBull
+          );
+
+          if (existingIdx >= 0) {
+            // Remove tile (toggle off)
+            const updatedTiles = currentTrade.tiles.filter((_, i) => i !== existingIdx);
+            if (updatedTiles.length === 0) {
+              setCurrentTrade(null);
+            } else {
+              setCurrentTrade({ ...currentTrade, tiles: updatedTiles });
+            }
+          } else {
+            // Add tile
+            setCurrentTrade({
+              ...currentTrade,
+              tiles: [...currentTrade.tiles, { ...tile }],
+            });
+          }
+        }
+      };
+
+      const handleTradeAction = (tradeIndex, actionType, value) => {
+        const updateTrade = (trade) => {
+          if (trade.index !== tradeIndex) return trade;
+
+          if (actionType === 'took') {
+            const updated = { ...trade, tookTrade: value };
+            if (value === false) {
+              updated.completed = true;
+              updated.result = null;
+            }
+            return updated;
+          }
+
+          if (actionType === 'result') {
+            return { ...trade, result: value, completed: true };
+          }
+
+          return trade;
+        };
+
+        if (currentTrade && currentTrade.index === tradeIndex) {
+          const updated = updateTrade(currentTrade);
+          if (updated.completed) {
+            setTrades([...trades, updated]);
+            setCurrentTrade(null);
+          } else {
+            setCurrentTrade(updated);
+          }
+        } else {
+          setTrades(trades.map(updateTrade));
+        }
+      };
+
+      const handleDoneTrading = () => {
+        if (currentTrade && !currentTrade.completed) {
+          setTrades([...trades, { ...currentTrade, completed: true }]);
+        }
+        setCurrentTrade(null);
+        setIsTrading(false);
+        setShowStats(true);
+      };
+
+      const allTrades = currentTrade ? [...trades, currentTrade] : trades;
+
+      return (
+        <div className="min-h-screen bg-gradient-to-b from-gray-100 to-gray-200 p-4 md:p-8">
+          <div className="max-w-5xl mx-auto">
+            <h1 className="text-3xl font-bold text-center text-gray-800 mb-8">
+              Trading Strategy Informer Tiles
+            </h1>
+
+            {!isTrading && !showStats && (
+              <div className="text-center py-16">
+                <button
+                  onClick={handleStartTrading}
+                  className="px-10 py-5 bg-gradient-to-r from-green-500 to-emerald-600 text-white text-2xl font-bold rounded-2xl shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all"
+                >
+                  Start Trading Session
+                </button>
+                <p className="mt-6 text-gray-600 text-lg">Click to begin logging your trade setups</p>
+              </div>
+            )}
+
+            {isTrading && (
+              <>
+                <div className="bg-white rounded-2xl shadow-xl p-6 mb-6">
+                  <h2 className="text-xl font-bold text-green-600 mb-4 flex items-center gap-2">
+                    <span className="w-3 h-3 bg-green-500 rounded-full"></span>
+                    Bullish Informers
+                  </h2>
+                  <div className="flex flex-wrap gap-4 justify-center mb-8">
+                    {bullTiles.map((tile, idx) => (
+                      <Tile
+                        key={idx}
+                        {...tile}
+                        onClick={() => handleTileClick(tile)}
+                        isSelected={currentTrade?.tiles.some(t => t.type === tile.type && t.isBull === tile.isBull)}
+                      />
+                    ))}
+                  </div>
+
+                  <h2 className="text-xl font-bold text-red-700 mb-4 flex items-center gap-2">
+                    <span className="w-3 h-3 bg-red-600 rounded-full"></span>
+                    Bearish Informers
+                  </h2>
+                  <div className="flex flex-wrap gap-4 justify-center">
+                    {bearTiles.map((tile, idx) => (
+                      <Tile
+                        key={idx}
+                        {...tile}
+                        onClick={() => handleTileClick(tile)}
+                        isSelected={currentTrade?.tiles.some(t => t.type === tile.type && t.isBull === tile.isBull)}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-2xl shadow-xl p-6 mb-6">
+                  <h2 className="text-xl font-bold text-gray-700 mb-4">Trade Log</h2>
+
+                  {allTrades.length === 0 ? (
+                    <div className="text-center text-gray-500 py-12 border-2 border-dashed border-gray-300 rounded-xl">
+                      <p className="text-lg">Click on informer tiles above to start logging a trade setup</p>
+                    </div>
+                  ) : (
+                    <div>
+                      {allTrades.map((trade) => (
+                        <TradeRow
+                          key={trade.index}
+                          trade={trade}
+                          onAction={handleTradeAction}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="text-center">
+                  <button
+                    onClick={handleDoneTrading}
+                    className="px-10 py-5 bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-xl font-bold rounded-2xl shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all"
+                  >
+                    Done Trading
+                  </button>
+                </div>
+              </>
+            )}
+
+            {showStats && (
+              <>
+                <Statistics trades={trades} />
+                <div className="text-center mt-8">
+                  <button
+                    onClick={handleStartTrading}
+                    className="px-8 py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white text-lg font-bold rounded-xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
+                  >
+                    Start New Session
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.render(<App />, document.getElementById('root'));
+  </script>
+</body>
+</html>
